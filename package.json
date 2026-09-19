@@ -3,13 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3001",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3001",
     "lint": "eslint"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.116.0",
+    "docxtemplater": "^3.69.3",
+    "mammoth": "^1.12.3",
     "next": "16.3.5",
+    "pizzip": "^3.2.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
