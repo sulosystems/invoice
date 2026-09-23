@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import { formatMoney, type Invoice, type InvoiceLineItem } from '@/lib/types'
 import { InvoiceMetricsPanel } from '../_shared/invoice-metrics-panel'
 import { SearchBox } from '../_shared/search-box'
@@ -26,26 +27,37 @@ export default async function InvoicesPage(props: PageProps<'/invoices'>) {
 
   const supabase = await createClient()
   const [{ data, error }, { data: totalsData }] = await Promise.all([
-    supabase.from('invoices').select('*').order('created_at', { ascending: false }),
-    supabase.from('invoice_totals').select('*'),
+    fetchAll<Invoice>((from, to) =>
+      supabase
+        .from('invoices')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .order('id')
+        .range(from, to)
+    ),
+    fetchAll<InvoiceTotal>((from, to) =>
+      supabase.from('invoice_totals').select('*').order('invoice_id').range(from, to)
+    ),
   ])
 
-  const allInvoices = (data ?? []) as Invoice[]
-  const totals = new Map(
-    ((totalsData ?? []) as InvoiceTotal[]).map((t) => [t.invoice_id, t])
-  )
+  const allInvoices = data
+  const totals = new Map(totalsData.map((t) => [t.invoice_id, t]))
 
   // Every line-item field lives at the line level, not the header, so a
   // search has to reach into invoice_line_items too (e.g. by supplier or
   // bill ref no) rather than only matching the header's number/notes.
   let matchingLineInvoiceIds: Set<string> | null = null
   if (query) {
-    const { data: lineItems } = await supabase
-      .from('invoice_line_items')
-      .select('invoice_id, product, supplier, comments, bill_ref_no, rec_dept, invoice_date, delivery_date, custom_fields')
+    const { data: lineItems } = await fetchAll<LineItemSearchFields>((from, to) =>
+      supabase
+        .from('invoice_line_items')
+        .select('invoice_id, product, supplier, comments, bill_ref_no, rec_dept, invoice_date, delivery_date, custom_fields')
+        .order('id')
+        .range(from, to)
+    )
 
     matchingLineInvoiceIds = new Set(
-      ((lineItems ?? []) as LineItemSearchFields[])
+      lineItems
         .filter((li) => {
           const haystack = [
             li.product,

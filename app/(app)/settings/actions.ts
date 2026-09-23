@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { CustomField } from '@/lib/types'
 
 export type DeleteFieldResult = { ok?: boolean; error?: string; removedFrom?: number }
@@ -22,15 +23,19 @@ export async function deleteCustomField(label: string): Promise<DeleteFieldResul
 
   const supabase = await createClient()
 
-  const { data: rows, error: fetchError } = await supabase
-    .from('invoice_line_items')
-    .select('id, custom_fields')
+  const { data: affected, error: fetchError } = await fetchAll<{ id: string; custom_fields: CustomField[] }>(
+    (from, to) =>
+      supabase
+        .from('invoice_line_items')
+        .select('id, custom_fields')
+        // A string, not an array: supabase-js renders arrays as a Postgres
+        // array literal, which is wrong for a jsonb column.
+        .contains('custom_fields', JSON.stringify([{ label: trimmed }]))
+        .order('id')
+        .range(from, to)
+  )
 
   if (fetchError) return { error: fetchError.message }
-
-  const affected = (rows ?? []).filter((r) =>
-    ((r.custom_fields ?? []) as CustomField[]).some((f) => f.label === trimmed)
-  )
 
   for (const row of affected) {
     const nextFields = ((row.custom_fields ?? []) as CustomField[]).filter(
