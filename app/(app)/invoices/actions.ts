@@ -121,6 +121,9 @@ export async function updateInvoice(
  * Line items cascade-delete with the invoice. Stock moves recorded against
  * it are kept (invoice_id is ON DELETE SET NULL) so stock levels don't
  * change — they just show as manual adjustments afterwards.
+ *
+ * Imported legacy invoices (OLD- numbers) are historical records and can't
+ * be deleted.
  */
 export async function deleteInvoice(invoiceId: string): Promise<{ ok?: boolean; error?: string }> {
   const supabase = await createClient()
@@ -128,11 +131,14 @@ export async function deleteInvoice(invoiceId: string): Promise<{ ok?: boolean; 
     .from('invoices')
     .delete()
     .eq('id', invoiceId)
+    .not('number', 'like', 'OLD-%')
     .select('id')
 
   if (error) return { error: error.message }
   // RLS turns an unauthorized delete into a silent no-op, not an error.
-  if (!data || data.length === 0) return { error: 'Invoice not found or you are not allowed to delete it.' }
+  if (!data || data.length === 0) {
+    return { error: 'This invoice can’t be deleted (it may be an imported previous invoice, or no longer exist).' }
+  }
 
   revalidatePath('/invoices')
   revalidatePath('/stock')

@@ -100,7 +100,9 @@ export default async function InvoiceDetailPage(
           templates={templates}
           currentTemplateId={inv.template_id}
         />
-        <DeleteInvoiceButton invoiceId={id} number={inv.number} />
+        {!inv.number.startsWith('OLD-') && (
+          <DeleteInvoiceButton invoiceId={id} number={inv.number} />
+        )}
       </div>
 
       {askStock && (
