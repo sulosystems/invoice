@@ -10,6 +10,7 @@ const NAV = [
   { href: '/products', label: 'Products' },
   { href: '/stock', label: 'Stock' },
   { href: '/templates', label: 'Templates' },
+  { href: '/settings', label: 'Settings' },
 ] as const
 
 export default async function AppLayout({ children }: LayoutProps<'/'>) {

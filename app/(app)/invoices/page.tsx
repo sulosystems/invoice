@@ -1,21 +1,85 @@
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { formatMoney, type Invoice } from '@/lib/types'
+import { formatMoney, type Invoice, type InvoiceLineItem } from '@/lib/types'
 import { InvoiceMetricsPanel } from '../_shared/invoice-metrics-panel'
+import { SearchBox } from '../_shared/search-box'
 
 type InvoiceTotal = { invoice_id: string; line_count: number; total: number }
 
-export default async function InvoicesPage() {
+type LineItemSearchFields = Pick<
+  InvoiceLineItem,
+  | 'invoice_id'
+  | 'product'
+  | 'supplier'
+  | 'comments'
+  | 'bill_ref_no'
+  | 'rec_dept'
+  | 'invoice_date'
+  | 'delivery_date'
+  | 'custom_fields'
+>
+
+export default async function InvoicesPage(props: PageProps<'/invoices'>) {
+  const { q } = await props.searchParams
+  const query = typeof q === 'string' ? q.trim().toLowerCase() : ''
+
   const supabase = await createClient()
   const [{ data, error }, { data: totalsData }] = await Promise.all([
     supabase.from('invoices').select('*').order('created_at', { ascending: false }),
     supabase.from('invoice_totals').select('*'),
   ])
 
-  const invoices = (data ?? []) as Invoice[]
+  const allInvoices = (data ?? []) as Invoice[]
   const totals = new Map(
     ((totalsData ?? []) as InvoiceTotal[]).map((t) => [t.invoice_id, t])
   )
+
+  // Every line-item field lives at the line level, not the header, so a
+  // search has to reach into invoice_line_items too (e.g. by supplier or
+  // bill ref no) rather than only matching the header's number/notes.
+  let matchingLineInvoiceIds: Set<string> | null = null
+  if (query) {
+    const { data: lineItems } = await supabase
+      .from('invoice_line_items')
+      .select('invoice_id, product, supplier, comments, bill_ref_no, rec_dept, invoice_date, delivery_date, custom_fields')
+
+    matchingLineInvoiceIds = new Set(
+      ((lineItems ?? []) as LineItemSearchFields[])
+        .filter((li) => {
+          const haystack = [
+            li.product,
+            li.supplier ?? '',
+            li.comments ?? '',
+            li.bill_ref_no ?? '',
+            li.rec_dept ?? '',
+            li.invoice_date,
+            li.delivery_date ?? '',
+            ...(li.custom_fields ?? []).map((cf) => `${cf.label} ${cf.value}`),
+          ]
+            .join(' ')
+            .toLowerCase()
+          return haystack.includes(query)
+        })
+        .map((li) => li.invoice_id)
+    )
+  }
+
+  const invoices = query
+    ? allInvoices.filter((inv) => {
+        const t = totals.get(inv.id)
+        const haystack = [
+          inv.number,
+          inv.notes ?? '',
+          new Date(inv.created_at).toLocaleDateString('en-CA'),
+          t ? String(t.line_count) : '',
+          t ? formatMoney(Number(t.total)) : '',
+        ]
+          .join(' ')
+          .toLowerCase()
+        return haystack.includes(query) || (matchingLineInvoiceIds?.has(inv.id) ?? false)
+      })
+    : allInvoices
 
   return (
     <div className="space-y-6">
@@ -36,6 +100,10 @@ export default async function InvoicesPage() {
 
       <InvoiceMetricsPanel />
 
+      <Suspense fallback={<div className="h-9 w-full max-w-xs rounded-md border border-neutral-300" />}>
+        <SearchBox placeholder="Search invoices — number, supplier, product, dept, notes…" />
+      </Suspense>
+
       {error && (
         <p className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
           {error.message}
@@ -44,7 +112,7 @@ export default async function InvoicesPage() {
 
       {invoices.length === 0 ? (
         <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
-          No invoices yet.
+          {query ? 'No invoices match your search.' : 'No invoices yet.'}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-neutral-200">

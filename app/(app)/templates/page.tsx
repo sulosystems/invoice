@@ -1,17 +1,36 @@
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import type { Template } from '@/lib/types'
 import { DeleteButton } from './delete-button'
 import { DownloadMenu } from './download-menu'
+import { SearchBox } from '../_shared/search-box'
 
-export default async function TemplatesPage() {
+export default async function TemplatesPage(props: PageProps<'/templates'>) {
+  const { q } = await props.searchParams
+  const query = typeof q === 'string' ? q.trim().toLowerCase() : ''
+
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('templates')
     .select('*')
     .order('created_at', { ascending: false })
 
-  const templates = (data ?? []) as Template[]
+  const allTemplates = (data ?? []) as Template[]
+  const templates = query
+    ? allTemplates.filter((t) =>
+        [
+          t.name,
+          t.is_default ? 'default' : '',
+          t.docx_base64 ? 'uploaded word document docx' : `${t.layout.columns?.length ?? 12} columns`,
+          t.layout.headerText ?? '',
+          t.layout.footerText ?? '',
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      )
+    : allTemplates
 
   return (
     <div className="space-y-6">
@@ -24,7 +43,7 @@ export default async function TemplatesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <DownloadMenu templates={templates} />
+          <DownloadMenu templates={allTemplates} />
           <Link
             href="/templates/new"
             className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700"
@@ -45,6 +64,10 @@ export default async function TemplatesPage() {
         .
       </p>
 
+      <Suspense fallback={<div className="h-9 w-full max-w-xs rounded-md border border-neutral-300" />}>
+        <SearchBox placeholder="Search templates — name, header/footer text…" />
+      </Suspense>
+
       {error && (
         <p className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
           {error.message}
@@ -53,8 +76,9 @@ export default async function TemplatesPage() {
 
       {templates.length === 0 ? (
         <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
-          No templates yet — invoices print with every column and no logo
-          until you make one.
+          {query
+            ? 'No templates match your search.'
+            : 'No templates yet — invoices print with every column and no logo until you make one.'}
         </p>
       ) : (
         <div className="divide-y divide-neutral-100 rounded-lg border border-neutral-200">

@@ -46,11 +46,20 @@ function blankLine(): EditableLine {
  * distinct label (first-appearance order) and maps each line's values onto
  * those ids.
  */
-function deriveInitialState(initial?: { invoice: Invoice; lines: InvoiceLineItem[] }) {
+function deriveInitialState(
+  initial?: { invoice: Invoice; lines: InvoiceLineItem[] },
+  availableCustomFields: string[] = []
+) {
   if (!initial || initial.lines.length === 0) {
+    // A brand-new invoice starts with every custom field anyone has ever
+    // used, ready to fill in — not just the fixed 12. Editing an existing
+    // invoice instead reflects exactly what that invoice actually has (below).
     return {
       lines: [blankLine()],
-      customColumns: [] as CustomColumn[],
+      customColumns: availableCustomFields.map((label) => ({
+        id: crypto.randomUUID(),
+        label,
+      })),
       notes: initial?.invoice.notes ?? '',
     }
   }
@@ -116,17 +125,25 @@ const DELETE_COLUMN_WIDTH_REM = 2
 
 export function InvoiceEditor({
   initial,
+  availableCustomFields = [],
 }: {
   /** Present when editing a saved invoice; absent when creating a new one. */
   initial?: { invoice: Invoice; lines: InvoiceLineItem[] }
+  /** Every custom-field label used on any invoice so far — pre-populated
+   * on a brand-new invoice only; ignored when editing an existing one. */
+  availableCustomFields?: string[]
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [notes, setNotes] = useState(() => deriveInitialState(initial).notes)
-  const [lines, setLines] = useState<EditableLine[]>(() => deriveInitialState(initial).lines)
+  const [notes, setNotes] = useState(
+    () => deriveInitialState(initial, availableCustomFields).notes
+  )
+  const [lines, setLines] = useState<EditableLine[]>(
+    () => deriveInitialState(initial, availableCustomFields).lines
+  )
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>(
-    () => deriveInitialState(initial).customColumns
+    () => deriveInitialState(initial, availableCustomFields).customColumns
   )
   const [addingField, setAddingField] = useState(false)
   const [pendingLabel, setPendingLabel] = useState('')

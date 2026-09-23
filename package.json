@@ -12,6 +12,7 @@
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.116.0",
     "docxtemplater": "^3.69.3",
+    "exceljs": "^4.4.0",
     "mammoth": "^1.12.3",
     "next": "16.3.5",
     "pizzip": "^3.2.0",

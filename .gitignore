@@ -37,6 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# claude code runtime state (not app code)
+/.claude/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
@@ -45,3 +48,5 @@ next-env.d.ts
 # working files not part of the app
 /SS*.png
 /FRPMC LOGO.jpg
+DEPLOYMENT.txt
+How is this app working.txt

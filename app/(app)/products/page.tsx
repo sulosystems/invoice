@@ -1,8 +1,13 @@
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import type { StockLevel } from '@/lib/types'
 import { AddProductForm } from './add-product-form'
+import { SearchBox } from '../_shared/search-box'
 
-export default async function ProductsPage() {
+export default async function ProductsPage(props: PageProps<'/products'>) {
+  const { q } = await props.searchParams
+  const query = typeof q === 'string' ? q.trim().toLowerCase() : ''
+
   const supabase = await createClient()
 
   // Read the view, not the table: on_hand comes with it, always correct.
@@ -11,7 +16,21 @@ export default async function ProductsPage() {
     .select('*')
     .order('name')
 
-  const products = (data ?? []) as StockLevel[]
+  const allProducts = (data ?? []) as StockLevel[]
+  const products = query
+    ? allProducts.filter((p) => {
+        const haystack = [
+          p.name,
+          p.sku ?? '',
+          p.unit,
+          String(p.on_hand),
+          p.last_movement_at ? new Date(p.last_movement_at).toLocaleDateString('en-CA') : '',
+        ]
+          .join(' ')
+          .toLowerCase()
+        return haystack.includes(query)
+      })
+    : allProducts
 
   return (
     <div className="space-y-6">
@@ -24,6 +43,10 @@ export default async function ProductsPage() {
 
       <AddProductForm />
 
+      <Suspense fallback={<div className="h-9 w-full max-w-xs rounded-md border border-neutral-300" />}>
+        <SearchBox placeholder="Search products — name, SKU, unit, on hand…" />
+      </Suspense>
+
       {error && (
         <p className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
           {error.message}
@@ -32,7 +55,7 @@ export default async function ProductsPage() {
 
       {products.length === 0 ? (
         <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
-          No products yet. Add one above.
+          {query ? 'No products match your search.' : 'No products yet. Add one above.'}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-neutral-200">

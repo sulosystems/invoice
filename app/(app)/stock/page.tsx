@@ -1,8 +1,10 @@
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import type { StockLevel } from '@/lib/types'
 import { AdjustForm } from './adjust-form'
 import { StockMetricsPanel } from '../_shared/stock-metrics-panel'
+import { SearchBox } from '../_shared/search-box'
 
 type LedgerRow = {
   id: string
@@ -13,7 +15,10 @@ type LedgerRow = {
   invoices: { id: string; number: string } | null
 }
 
-export default async function StockPage() {
+export default async function StockPage(props: PageProps<'/stock'>) {
+  const { q } = await props.searchParams
+  const query = typeof q === 'string' ? q.trim().toLowerCase() : ''
+
   const supabase = await createClient()
 
   const [{ data: levels }, { data: ledger, error }] = await Promise.all([
@@ -27,8 +32,39 @@ export default async function StockPage() {
       .limit(200),
   ])
 
-  const products = (levels ?? []) as StockLevel[]
-  const rows = (ledger ?? []) as unknown as LedgerRow[]
+  const allProducts = (levels ?? []) as StockLevel[]
+  const allRows = (ledger ?? []) as unknown as LedgerRow[]
+
+  const products = query
+    ? allProducts.filter((p) =>
+        [
+          p.name,
+          p.sku ?? '',
+          p.unit,
+          String(p.on_hand),
+          p.last_movement_at ? new Date(p.last_movement_at).toLocaleDateString('en-CA') : '',
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      )
+    : allProducts
+
+  const rows = query
+    ? allRows.filter((r) =>
+        [
+          new Date(r.created_at).toLocaleString('en-CA'),
+          r.products?.name ?? '',
+          r.products?.unit ?? '',
+          String(r.qty),
+          r.invoices?.number ?? 'Manual',
+          r.comment ?? '',
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      )
+    : allRows
 
   return (
     <div className="space-y-6">
@@ -41,7 +77,11 @@ export default async function StockPage() {
 
       <StockMetricsPanel />
 
-      <AdjustForm products={products} />
+      <AdjustForm products={allProducts} />
+
+      <Suspense fallback={<div className="h-9 w-full max-w-xs rounded-md border border-neutral-300" />}>
+        <SearchBox placeholder="Search stock — product, SKU, unit, invoice, comment…" />
+      </Suspense>
 
       {error && (
         <p className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
@@ -53,11 +93,17 @@ export default async function StockPage() {
         <h2 className="text-sm font-medium text-neutral-500">Current stock</h2>
         {products.length === 0 ? (
           <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
-            No products yet.{' '}
-            <Link href="/products" className="underline">
-              Add one
-            </Link>{' '}
-            to start tracking stock.
+            {query ? (
+              'No products match your search.'
+            ) : (
+              <>
+                No products yet.{' '}
+                <Link href="/products" className="underline">
+                  Add one
+                </Link>{' '}
+                to start tracking stock.
+              </>
+            )}
           </p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-neutral-200">
@@ -97,7 +143,7 @@ export default async function StockPage() {
         <h2 className="text-sm font-medium text-neutral-500">Movement history</h2>
         {rows.length === 0 ? (
         <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
-          No stock movements recorded yet.
+          {query ? 'No movements match your search.' : 'No stock movements recorded yet.'}
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-neutral-200">
