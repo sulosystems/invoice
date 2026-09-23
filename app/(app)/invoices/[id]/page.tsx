@@ -5,6 +5,7 @@ import type { Invoice, StockLevel, Template } from '@/lib/types'
 import { InvoiceDocument, type LineItemRow } from '../invoice-document'
 import { StockPrompt } from './stock-prompt'
 import { PrintDialog } from './print-dialog'
+import { DeleteInvoiceButton } from './delete-invoice-button'
 
 type MoveRow = {
   id: string
@@ -99,6 +100,7 @@ export default async function InvoiceDetailPage(
           templates={templates}
           currentTemplateId={inv.template_id}
         />
+        <DeleteInvoiceButton invoiceId={id} number={inv.number} />
       </div>
 
       {askStock && (

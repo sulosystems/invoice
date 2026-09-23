@@ -81,6 +81,12 @@ export default async function InvoicesPage(props: PageProps<'/invoices'>) {
       })
     : allInvoices
 
+  // Bulk-imported records from the old Purchase Management system are
+  // marked with an "OLD-" number (see the legacy import), so they can be
+  // kept out of the main list and shown in their own section instead.
+  const currentInvoices = invoices.filter((inv) => !inv.number.startsWith('OLD-'))
+  const previousInvoices = invoices.filter((inv) => inv.number.startsWith('OLD-'))
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -110,53 +116,81 @@ export default async function InvoicesPage(props: PageProps<'/invoices'>) {
         </p>
       )}
 
-      {invoices.length === 0 ? (
+      {currentInvoices.length === 0 ? (
         <p className="rounded-lg border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500">
           {query ? 'No invoices match your search.' : 'No invoices yet.'}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-neutral-200">
-          <table className="w-full text-sm">
-            <thead className="border-b border-neutral-200 bg-neutral-50 text-left">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Invoice ID</th>
-                <th className="px-4 py-2.5 font-medium">Created</th>
-                <th className="px-4 py-2.5 text-right font-medium">Lines</th>
-                <th className="px-4 py-2.5 text-right font-medium">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((inv) => {
-                const t = totals.get(inv.id)
-                return (
-                  <tr
-                    key={inv.id}
-                    className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50"
-                  >
-                    <td className="px-4 py-2.5">
-                      <Link
-                        href={`/invoices/${inv.id}`}
-                        className="font-mono text-xs underline-offset-2 hover:underline"
-                      >
-                        {inv.number}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-2.5 text-neutral-600">
-                      {new Date(inv.created_at).toLocaleDateString('en-CA')}
-                    </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">
-                      {t?.line_count ?? 0}
-                    </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">
-                      {formatMoney(Number(t?.total ?? 0))}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <InvoiceTable invoices={currentInvoices} totals={totals} />
       )}
+
+      {allInvoices.some((inv) => inv.number.startsWith('OLD-')) && (
+        <details className="group rounded-lg border border-neutral-200">
+          <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50">
+            Previous invoices ({previousInvoices.length})
+            <span className="ml-2 text-xs font-normal text-neutral-400">
+              Imported from the old Purchase Management system — one summary line item per record, no product breakdown.
+            </span>
+          </summary>
+          <div className="border-t border-neutral-200 p-4">
+            {previousInvoices.length === 0 ? (
+              <p className="text-sm text-neutral-500">No previous invoices match your search.</p>
+            ) : (
+              <InvoiceTable invoices={previousInvoices} totals={totals} />
+            )}
+          </div>
+        </details>
+      )}
+    </div>
+  )
+}
+
+function InvoiceTable({
+  invoices,
+  totals,
+}: {
+  invoices: Invoice[]
+  totals: Map<string, InvoiceTotal>
+}) {
+  return (
+    <div className="overflow-x-auto rounded-lg border border-neutral-200">
+      <table className="w-full text-sm">
+        <thead className="border-b border-neutral-200 bg-neutral-50 text-left">
+          <tr>
+            <th className="px-4 py-2.5 font-medium">Invoice ID</th>
+            <th className="px-4 py-2.5 font-medium">Created</th>
+            <th className="px-4 py-2.5 text-right font-medium">Lines</th>
+            <th className="px-4 py-2.5 text-right font-medium">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {invoices.map((inv) => {
+            const t = totals.get(inv.id)
+            return (
+              <tr
+                key={inv.id}
+                className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50"
+              >
+                <td className="px-4 py-2.5">
+                  <Link
+                    href={`/invoices/${inv.id}`}
+                    className="font-mono text-xs underline-offset-2 hover:underline"
+                  >
+                    {inv.number}
+                  </Link>
+                </td>
+                <td className="px-4 py-2.5 text-neutral-600">
+                  {new Date(inv.created_at).toLocaleDateString('en-CA')}
+                </td>
+                <td className="px-4 py-2.5 text-right tabular-nums">{t?.line_count ?? 0}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums">
+                  {formatMoney(Number(t?.total ?? 0))}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }

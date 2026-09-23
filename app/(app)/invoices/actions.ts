@@ -117,6 +117,29 @@ export async function updateInvoice(
   return { id: invoiceId }
 }
 
+/**
+ * Line items cascade-delete with the invoice. Stock moves recorded against
+ * it are kept (invoice_id is ON DELETE SET NULL) so stock levels don't
+ * change — they just show as manual adjustments afterwards.
+ */
+export async function deleteInvoice(invoiceId: string): Promise<{ ok?: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('invoices')
+    .delete()
+    .eq('id', invoiceId)
+    .select('id')
+
+  if (error) return { error: error.message }
+  // RLS turns an unauthorized delete into a silent no-op, not an error.
+  if (!data || data.length === 0) return { error: 'Invoice not found or you are not allowed to delete it.' }
+
+  revalidatePath('/invoices')
+  revalidatePath('/stock')
+  revalidatePath('/dashboard')
+  return { ok: true }
+}
+
 export async function setInvoiceTemplate(
   invoiceId: string,
   templateId: string | null
